@@ -219,6 +219,9 @@ def records(request, collection, record_id=None):
             row.save(update_fields=['payload'])
         else:
             row = Record.objects.create(collection=collection, payload=data)
+        if collection == 'leads':
+            from .integrations.inbound import record_closed
+            record_closed(row)
         return JsonResponse(serialized(row), status=200 if record_id else 201)
 
 
@@ -230,11 +233,9 @@ def state(request):
     for row in Record.objects.all():
         if row.collection in collections:
             collections[row.collection].append(serialized(row))
-    return JsonResponse(build_state(collections, timezone.localdate().isoformat(), request.GET))
-
-
-@api_view
-def unconfigured(request):
-    if request.method != 'POST':
-        return JsonResponse({'errores': ['Método no permitido.']}, status=405)
-    return JsonResponse({'errores': ['El consultor no está conectado. Esta versión conserva su interfaz, pero no incluye un proveedor de IA ni procesa adjuntos.']}, status=503)
+    from .integrations.config import public_status
+    from .integrations.inbound_metrics import dashboard
+    result = build_state(collections, timezone.localdate().isoformat(), request.GET)
+    result['metricas']['inbound'] = dashboard(request.GET)
+    result['integraciones'] = public_status()
+    return JsonResponse(result)

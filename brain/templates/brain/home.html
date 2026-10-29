@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ business_name }} — Segundo cerebro</title>
+<meta name="session-user" content="{{ request.user.pk }}">
 <meta name="csrf-token" content="{{ csrf_token }}">
 <link rel="icon" type="image/svg+xml" href="{% static 'ui/favicon.svg' %}">
 <link rel="stylesheet" href="{% static 'ui/style.css' %}">
@@ -255,7 +256,8 @@
         <button id="btn-nueva-conversacion" class="boton-secundario" type="button">Nueva conversación</button>
       </div>
     </div>
-    <p class="descriptor">Consultá los datos de tu negocio. Esta instalación todavía no tiene un proveedor de IA conectado.</p>
+    <p class="descriptor" id="consultor-conexion">Cargando conexión del consultor…</p>
+    <p class="nota">Al enviar, OpenAI recibe tu consulta, los datos del negocio, sus notas y los adjuntos de la conversación. El consultor analiza; los cambios se cargan desde los formularios.</p>
     <div class="glass glass-card chat-shell">
       <div class="panel core chat-core">
 
@@ -264,7 +266,7 @@
         <div id="consultor-actividad" class="chat-actividad" aria-live="polite"></div>
         <div id="consultor-adjuntos" class="chat-adjuntos" hidden></div>
         <form id="form-consultor" class="chat-entrada">
-          <input type="file" id="consultor-archivo" multiple hidden>
+          <input type="file" id="consultor-archivo" accept=".txt,.md,.csv,.json,.pdf,.png,.jpg,.jpeg,.webp" multiple hidden>
           <button type="button" id="btn-adjuntar" class="boton-secundario boton-adjuntar"
             aria-label="Adjuntar archivos" title="Adjuntar archivos">📎</button>
           <textarea id="consultor-texto" rows="1" autocomplete="off" enterkeyhint="send"
@@ -282,9 +284,10 @@
         <p class="eyebrow">Marca personal · Instagram</p>
         <h1 class="titulo-pagina">Inbound</h1>
       </div>
-      <span id="inbound-sync" class="nota" role="status"></span>
+      <div class="fila-botones-titulo"><button id="btn-sync-inbound" class="boton-secundario" type="button" disabled>Sincronizar</button><span id="inbound-sync" class="nota" role="status"></span></div>
     </div>
     <p class="descriptor">Video → DM con keyword → lead → llamada → cliente.</p>
+    <p id="inbound-conexion" class="nota" role="status"></p>
     <div class="filtros inbound-filtros" aria-label="Filtros de inbound">
       <label>Cuenta <select id="inbound-cuenta"></select></label>
       <label>Período

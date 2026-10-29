@@ -17,7 +17,9 @@ La captura usa datos ficticios; no vienen precargados.
 - **Caja:** seguir saldos y registrar transferencias o ajustes.
 - **Tasks y Tickets:** compartir pendientes y pedidos dentro del equipo.
 
-Las pantallas **Consultor** e **Inbound** conservan su interfaz, pero sus integraciones no están conectadas. No hay respuestas de IA, procesamiento de adjuntos ni sincronización con Instagram. Tampoco incluye facturación electrónica ni contabilidad fiscal.
+**Consultor** usa OpenAI para responder con los datos del negocio, historial y adjuntos. **Inbound** sincroniza videos de Instagram y recibe eventos de Manychat para seguir DMs, leads, llamadas y cierres. Cada instalación configura sus propias credenciales; las conexiones vienen desactivadas. Seguí la [guía de integraciones](docs/integraciones.md).
+
+No incluye facturación electrónica ni contabilidad fiscal.
 
 ## Empezar
 
@@ -66,12 +68,12 @@ Si instalaste la primera versión con formularios de Django, ejecutá `python sc
 - El servidor escucha solo en `127.0.0.1`. Las páginas y la API requieren sesión; las escrituras usan protección CSRF.
 - Las contraseñas nuevas se guardan con Argon2. No se incluyen usuarios ni contraseñas predeterminados.
 - La base y la clave se crean fuera del repositorio. En Linux y macOS, la carpeta tiene permisos `0700` y la clave `0600`.
-- No se incluyen claves de API, datos de negocio, telemetría ni recursos cargados desde servicios externos.
-- Para acceder desde otra máquina, usá un túnel SSH: `ssh -L 8000:127.0.0.1:8000 usuario@servidor` y abrí `127.0.0.1:8000` en tu equipo. Esta configuración no está preparada para exponer el puerto directamente a internet.
+- No se incluyen claves de API, datos de negocio ni telemetría. Los recursos visuales son locales. Las integraciones externas solo se conectan cuando las configurás; el Consultor transmite datos a OpenAI al enviar una consulta.
+- Para acceder desde otra máquina, usá un túnel SSH: `ssh -L 8000:127.0.0.1:8000 usuario@servidor` y abrí `127.0.0.1:8000` en tu equipo. Esta configuración no está preparada para exponer el puerto directamente a internet. El webhook tiene un [receptor separado](docs/integraciones.md#publicar-solo-el-receptor).
 - Actualizá las dependencias cuando salgan parches de seguridad y hacé copias privadas de la base.
 
 Para informar una vulnerabilidad, usá un aviso privado de seguridad de GitHub. No incluyas datos sensibles en un issue público.
 
-Hay un solo espacio de datos. El aislamiento entre empresas, los permisos por rol y un despliegue público por HTTPS requieren trabajo adicional.
+Hay un solo espacio de datos compartidos de negocio. Las conversaciones y los adjuntos del Consultor se separan por usuario. El aislamiento entre empresas, los permisos por rol y un despliegue público por HTTPS requieren trabajo adicional.
 
 Código bajo licencia MIT. La tipografía Inter se distribuye bajo SIL Open Font License; su licencia está en `brain/static/ui/fonts/OFL.txt`.

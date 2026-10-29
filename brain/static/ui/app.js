@@ -1,5 +1,12 @@
 'use strict';
 
+// A new login in the same tab must not restore another user's conversation.
+try {
+  const owner = document.querySelector('meta[name="session-user"]').content;
+  if (sessionStorage.getItem('cerebro.owner') !== owner) sessionStorage.clear();
+  sessionStorage.setItem('cerebro.owner', owner);
+} catch (_) {}
+
 const nativeFetch = window.fetch.bind(window);
 async function apiFetch(input, options = {}) {
   const url = new URL(input, location.href);
@@ -267,6 +274,7 @@ function render() {
   renderMiTablero();
   renderTickets();
   renderTareas();
+  renderIntegraciones();
   dispararEntrada();
   primeraPintura = false;
 }
@@ -363,7 +371,7 @@ function renderInbound() {
     tabla.appendChild(cabecera);
     for (const item of inbound.ranking) {
       const fila = document.createElement('tr');
-      const valores = [item.keyword || 'Sin CTA', item.cuenta_id, item.reproducciones ?? 0, item.dms, item.leads, item.llamadas, item.clientes];
+      const valores = [item.keyword || 'Sin CTA', item.cuenta_id, item.reproducciones ?? '—', item.dms, item.leads, item.llamadas, item.clientes];
       valores.forEach((contenido, indice) => {
         const celda = document.createElement('td');
         if (indice === 0) celda.className = 'keyword';
@@ -413,7 +421,7 @@ function renderInbound() {
   const avisos = [];
   if (inbound.sinAtribucion.publicaciones) avisos.push(`${inbound.sinAtribucion.publicaciones} video(s) sin keyword atribuible en el caption`);
   if (inbound.sinAtribucion.eventos?.total) avisos.push(`${inbound.sinAtribucion.eventos.total} evento(s) sin publicación resuelta`);
-  sinAtribucion.textContent = avisos.length ? `${avisos.join(' · ')}.` : 'Sin datos de atribución cargados.';
+  sinAtribucion.textContent = avisos.length ? `${avisos.join(' · ')}.` : (inbound.ranking.length ? 'Sin eventos pendientes de atribución.' : 'Sin datos de atribución cargados.');
   sinAtribucion.classList.toggle('inbound-sin-atribucion', avisos.length > 0);
 }
 
@@ -1979,8 +1987,8 @@ function restaurarConsultor() {
 function sincronizarControles() {
   const corriendo = Boolean(turnoConsultor);
   $('#btn-detener-consulta').hidden = !corriendo;
-  $('#btn-enviar-consulta').disabled = corriendo || subidasEnCurso > 0;
-  $('#btn-adjuntar').disabled = corriendo;
+  $('#btn-enviar-consulta').disabled = corriendo || subidasEnCurso > 0 || !estado?.integraciones?.consultor;
+  $('#btn-adjuntar').disabled = corriendo || !estado?.integraciones?.consultor;
 }
 
 function pintarAdjuntos() {
@@ -2010,6 +2018,10 @@ function pintarAdjuntos() {
 }
 
 async function subirAdjunto(archivo) {
+  if (archivo.size > 2 * 1024 * 1024 || adjuntosConsultor.length + subidasEnCurso >= 4) {
+    agregarMensaje({ rol: 'error', texto: 'Podés adjuntar hasta 4 archivos de 2 MB cada uno.' });
+    return;
+  }
   subidasEnCurso++;
   pintarAdjuntos();
   sincronizarControles();
@@ -2212,9 +2224,10 @@ $('#consultor-modelo').addEventListener('click', (ev) => {
   if (elegido) elegirModelo(elegido.dataset.modelo);
 });
 $('#btn-adjuntar').addEventListener('click', () => $('#consultor-archivo').click());
-$('#consultor-archivo').addEventListener('change', (ev) => {
-  for (const archivo of ev.target.files) subirAdjunto(archivo);
+$('#consultor-archivo').addEventListener('change', async (ev) => {
+  const files = Array.from(ev.target.files);
   ev.target.value = '';
+  for (const archivo of files) await subirAdjunto(archivo);
 });
 
 $('#form-ticket').addEventListener('submit', crearTicket);
@@ -2281,4 +2294,39 @@ $('.logout-form').addEventListener('submit', () => {
 });
 window.addEventListener('pageshow', (event) => {
   if (event.persisted) location.reload();
+});
+
+let sincronizandoInbound = false;
+function renderIntegraciones() {
+  const status = estado?.integraciones || {};
+  const help = 'https://github.com/facukoren/segundo-cerebro-negocios/blob/main/docs/integraciones.md';
+  const chat = $('#consultor-conexion');
+  chat.textContent = status.consultor ? 'OpenAI conectado · historial por usuario · adjuntos disponibles durante 24 horas.' : 'Consultor sin configurar. ';
+  if (!status.consultor) {
+    const link = document.createElement('a'); link.href = help; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Cómo conectar tu cuenta'; chat.appendChild(link);
+  }
+  const inbound = $('#inbound-conexion');
+  inbound.textContent = status.inbound ? (status.webhook ? 'Instagram y recepción de eventos configurados.' : 'Instagram configurado. Falta el webhook para recibir DMs, leads y llamadas.') : 'Instagram sin configurar. ';
+  if (!status.inbound || !status.webhook) {
+    const link = document.createElement('a'); link.href = help; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = ' Ver configuración'; inbound.appendChild(link);
+  }
+  if (status.error) inbound.appendChild(document.createTextNode(' ' + status.error));
+  $('#btn-sync-inbound').disabled = !status.inbound || sincronizandoInbound;
+  sincronizarControles();
+}
+$('#btn-sync-inbound').addEventListener('click', async () => {
+  if (sincronizandoInbound) return;
+  sincronizandoInbound = true;
+  const button = $('#btn-sync-inbound'); button.disabled = true; button.textContent = 'Sincronizando…';
+  try {
+    const response = await apiFetch('/api/inbound/sync', { method: 'POST' });
+    const data = await response.json();
+    const messages = data.errores || (data.cuentas || []).filter(row => row.estado !== 'ok').map(row => row.mensaje);
+    await cargar();
+    if (messages.length) $('#inbound-conexion').textContent = messages.join(' ');
+  } catch (_) {
+    $('#inbound-conexion').textContent = 'No se pudo sincronizar. Intentá de nuevo; los datos anteriores se conservan.';
+  } finally {
+    sincronizandoInbound = false; button.textContent = 'Sincronizar'; button.disabled = !estado?.integraciones?.inbound;
+  }
 });

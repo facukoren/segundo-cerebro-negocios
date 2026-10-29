@@ -109,3 +109,65 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class Conversation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    messages = models.JSONField(default=list)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class Attachment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey('auth.User', on_delete=models.CASCADE)
+    name = models.CharField(max_length=160)
+    mime = models.CharField(max_length=80)
+    content = models.BinaryField()
+    size = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class IntegrationLease(models.Model):
+    name = models.CharField(max_length=100, primary_key=True)
+    holder = models.UUIDField(default=uuid.uuid4)
+    expires_at = models.DateTimeField()
+
+
+class InboundPublication(models.Model):
+    account_id = models.CharField(max_length=40)
+    media_id = models.CharField(max_length=40)
+    published_at = models.DateTimeField()
+    caption = models.TextField(blank=True)
+    permalink = models.URLField(max_length=500, blank=True)
+    keyword = models.CharField(max_length=40, blank=True)
+    views = models.PositiveBigIntegerField(null=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['account_id', 'media_id'], name='inbound_unique_media')]
+
+
+class InboundContact(models.Model):
+    account_id = models.CharField(max_length=40)
+    contact_id = models.CharField(max_length=128)
+    lead = models.OneToOneField(Record, on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['account_id', 'contact_id'], name='inbound_unique_contact')]
+
+
+class InboundEvent(models.Model):
+    key = models.CharField(max_length=64, unique=True)
+    account_id = models.CharField(max_length=40)
+    contact_id = models.CharField(max_length=128)
+    kind = models.CharField(max_length=24)
+    keyword = models.CharField(max_length=40)
+    occurred_at = models.DateTimeField(db_index=True)
+
+
+class InboundSync(models.Model):
+    account_id = models.CharField(max_length=40, primary_key=True)
+    attempted_at = models.DateTimeField(null=True)
+    succeeded_at = models.DateTimeField(null=True)
+    error = models.CharField(max_length=200, blank=True)
+    truncated = models.BooleanField(default=False)

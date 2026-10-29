@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Segundo cerebro</title>
+<h1>Segundo cerebro</h1>
+<p>{{ today|date:"d/m/Y" }} · {{ request.user.username }}</p>
+<form action="{% url 'logout' %}" method="post">{% csrf_token %}<button type="submit">Salir</button></form>
+<h2>Este mes</h2>
+<ul>
+  <li>Abonos activos: {{ mrr }}</li>
+  <li>Cobros registrados: {{ income }}</li>
+  <li>Gastos registrados: {{ expenses }}</li>
+  <li>Resultado registrado: {{ result }}</li>
+  <li>Leads abiertos: {{ open_leads }}</li>
+  <li>Tareas pendientes: {{ open_tasks }}</li>
+</ul>
+<p>Los importes se muestran en la moneda que uses para todos tus registros. No hay conversión de monedas.</p>
+<h2>Trabajar</h2>
+<ul>
+  <li><a href="{% url 'admin:brain_note_changelist' %}">Notas</a></li>
+  <li><a href="{% url 'admin:brain_lead_changelist' %}">Leads</a></li>
+  <li><a href="{% url 'admin:brain_client_changelist' %}">Clientes</a></li>
+  <li><a href="{% url 'admin:brain_entry_changelist' %}">Cobros y gastos</a></li>
+  <li><a href="{% url 'admin:brain_task_changelist' %}">Tareas</a></li>
+</ul>
+<h2>Notas recientes</h2>
+<ul>{% for note in notes %}<li><a href="{% url 'admin:brain_note_change' note.pk %}">{{ note.title }}</a> · {{ note.topic }}</li>{% empty %}<li>Sin notas.</li>{% endfor %}</ul>
+<h2>Tareas pendientes</h2>
+<ul>{% for task in tasks %}<li><a href="{% url 'admin:brain_task_change' task.pk %}">{{ task.title }}</a></li>{% empty %}<li>Sin tareas pendientes.</li>{% endfor %}</ul>
+<h2>Clientes activos</h2>
+<ul>{% for client in clients %}<li><a href="{% url 'admin:brain_client_change' client.pk %}">{{ client.name }}</a></li>{% empty %}<li>Sin clientes activos.</li>{% endfor %}</ul>

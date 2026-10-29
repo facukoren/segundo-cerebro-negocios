@@ -18,6 +18,9 @@ if len(SECRET_KEY) < 50:
     raise ImproperlyConfigured("La clave local es demasiado corta; generá una nueva de 50+ caracteres")
 
 DEBUG = False
+BUSINESS_NAME = os.environ.get("SECOND_BRAIN_NAME", "CEREBRO")[:40]
+CSRF_FAILURE_VIEW = "brain.views.csrf_failure"
+DATA_UPLOAD_MAX_MEMORY_SIZE = 64 * 1024
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", "[::1]"]
 CSRF_TRUSTED_ORIGINS = []
 

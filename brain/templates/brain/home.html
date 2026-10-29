@@ -1,32 +1,525 @@
+{% load static %}
 <!doctype html>
 <html lang="es">
+<head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Segundo cerebro</title>
-<h1>Segundo cerebro</h1>
-<p>{{ today|date:"d/m/Y" }} · {{ request.user.username }}</p>
-<form action="{% url 'logout' %}" method="post">{% csrf_token %}<button type="submit">Salir</button></form>
-<h2>Este mes</h2>
-<ul>
-  <li>Abonos activos: {{ mrr }}</li>
-  <li>Cobros registrados: {{ income }}</li>
-  <li>Gastos registrados: {{ expenses }}</li>
-  <li>Resultado registrado: {{ result }}</li>
-  <li>Leads abiertos: {{ open_leads }}</li>
-  <li>Tareas pendientes: {{ open_tasks }}</li>
-</ul>
-<p>Los importes se muestran en la moneda que uses para todos tus registros. No hay conversión de monedas.</p>
-<h2>Trabajar</h2>
-<ul>
-  <li><a href="{% url 'admin:brain_note_changelist' %}">Notas</a></li>
-  <li><a href="{% url 'admin:brain_lead_changelist' %}">Leads</a></li>
-  <li><a href="{% url 'admin:brain_client_changelist' %}">Clientes</a></li>
-  <li><a href="{% url 'admin:brain_entry_changelist' %}">Cobros y gastos</a></li>
-  <li><a href="{% url 'admin:brain_task_changelist' %}">Tareas</a></li>
-</ul>
-<h2>Notas recientes</h2>
-<ul>{% for note in notes %}<li><a href="{% url 'admin:brain_note_change' note.pk %}">{{ note.title }}</a> · {{ note.topic }}</li>{% empty %}<li>Sin notas.</li>{% endfor %}</ul>
-<h2>Tareas pendientes</h2>
-<ul>{% for task in tasks %}<li><a href="{% url 'admin:brain_task_change' task.pk %}">{{ task.title }}</a></li>{% empty %}<li>Sin tareas pendientes.</li>{% endfor %}</ul>
-<h2>Clientes activos</h2>
-<ul>{% for client in clients %}<li><a href="{% url 'admin:brain_client_change' client.pk %}">{{ client.name }}</a></li>{% empty %}<li>Sin clientes activos.</li>{% endfor %}</ul>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ business_name }} — Segundo cerebro</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<link rel="icon" type="image/svg+xml" href="{% static 'ui/favicon.svg' %}">
+<link rel="stylesheet" href="{% static 'ui/style.css' %}">
+</head>
+<body>
+<section id="pantalla-acceso" class="pantalla-acceso" aria-labelledby="acceso-titulo">
+  <div class="acceso-card glass">
+    <div class="acceso-marca">{{ business_name }}</div>
+    <p class="eyebrow">Segundo cerebro</p>
+    <h1 id="acceso-titulo">¿Qué vista querés abrir?</h1>
+    <p class="acceso-descripcion">1 · Personal &nbsp; 2 · Gestión &nbsp; 3 · Equipo</p>
+    <form id="form-acceso">
+      <label class="sr-only" for="codigo-acceso">Código</label>
+      <input id="codigo-acceso" class="acceso-input" inputmode="numeric" pattern="[123]" maxlength="1"
+        autocomplete="off" aria-describedby="acceso-error" placeholder="·" autofocus required>
+      <button class="boton-primario acceso-boton" type="submit">Entrar</button>
+      <p id="acceso-error" class="acceso-error" role="alert" hidden>Código no reconocido.</p>
+    </form>
+  </div>
+</section>
+<header class="topbar">
+  <div class="wordmark glass"><svg viewBox="0 0 32 32" width="20" height="20" aria-hidden="true"><path d="M23 9H13a7 7 0 0 0 0 14h10v-4H13a3 3 0 0 1 0-6h10z" fill="#FF4B1F"/></svg><span class="marca-texto">{{ business_name }}</span></div>
+  <div class="topbar-pill glass">
+  <nav class="nav">
+    <a href="#/" class="nav-item" data-ruta="#/">Resumen</a>
+    <a href="#/pipeline" class="nav-item" data-ruta="#/pipeline">Pipeline</a>
+    <a href="#/clientes" class="nav-item" data-ruta="#/clientes">Clientes</a>
+    <a href="#/finanzas" class="nav-item" data-ruta="#/finanzas">Finanzas</a>
+    <a href="#/caja" class="nav-item" data-ruta="#/caja">Caja</a>
+    <a href="#/consultor" class="nav-item" data-ruta="#/consultor">Consultor</a>
+    <a href="#/inbound" class="nav-item" data-ruta="#/inbound">Inbound</a>
+  </nav>
+  <span id="sync-estado" class="sync"></span>
+  </div>
+  <div class="topbar-actions">
+    <button id="btn-volver-tablero" class="boton-secundario boton-ver-tickets" type="button" hidden>Tablero</button>
+    <button id="btn-ver-tickets" class="boton-secundario boton-ver-tickets" type="button" hidden>Tickets</button>
+    <button id="btn-ver-tareas" class="boton-secundario boton-ver-tickets" type="button" hidden>Tasks</button>
+  </div>
+</header>
+<main>
+  <section id="errores" hidden></section>
+
+  <section id="pagina-mi-tablero" class="pagina pagina-personal" hidden>
+    <div class="fila-titulo mi-tablero-titulo">
+      <div>
+        <p class="eyebrow">Visión de negocio</p>
+        <h1 class="titulo-pagina">Mi tablero</h1>
+      </div>
+    </div>
+    <p class="descriptor">Lo importante para decidir qué mover hoy, sin recorrer todo el CRM.</p>
+    <div id="mi-pulso" class="mi-pulso"><div class="mi-loading">Cargando el pulso del negocio…</div></div>
+    <div id="mi-prioridades" class="mi-grid"><div class="mi-loading">Cargando prioridades…</div></div>
+    <section class="seccion mi-seccion">
+      <h2>Gráficos</h2>
+      <p class="descriptor">La lectura visual de pipeline y resultado reciente.</p>
+      <div id="mi-graficos" class="mi-graficos"><div class="mi-loading">Cargando gráficos…</div></div>
+    </section>
+    <section class="seccion mi-seccion">
+      <div class="fila-titulo">
+        <div>
+          <h2>Embudo actual</h2>
+          <p class="descriptor">La foto de hoy. Las llamadas agendadas todavía son una etapa, no un registro de llamadas realizadas.</p>
+        </div>
+      </div>
+      <div id="mi-embudo" class="mi-embudo"><div class="mi-loading">Cargando embudo…</div></div>
+    </section>
+    <section class="seccion mi-seccion">
+      <h2>Foco comercial</h2>
+      <p class="descriptor">Oportunidades que merecen una decisión o seguimiento.</p>
+      <div id="mi-foco" class="mi-foco"><div class="mi-loading">Cargando oportunidades…</div></div>
+    </section>
+  </section>
+
+  <section id="pagina-tickets" class="pagina pagina-tickets" hidden>
+    <div class="fila-titulo">
+      <div>
+        <p class="eyebrow">Pedidos internos</p>
+        <h1 class="titulo-pagina">Tickets</h1>
+      </div>
+      <button id="btn-toggle-archivados" class="boton-secundario" type="button" hidden>Ver archivados</button>
+    </div>
+    <p class="descriptor" id="tickets-descripcion">Pedidos simples para convertir en trabajo concreto.</p>
+    <div id="ticket-form-wrap" class="glass glass-card ticket-form-wrap" role="dialog" aria-labelledby="ticket-form-titulo" hidden>
+      <div class="panel core">
+        <div class="ticket-form-heading"><h3 id="ticket-form-titulo">Nuevo pedido</h3><button id="btn-cerrar-ticket" class="boton-icono" type="button" aria-label="Cerrar formulario">×</button></div>
+        <form id="form-ticket" class="ticket-form">
+          <label>Título
+            <input id="ticket-titulo" required maxlength="120" autocomplete="off" placeholder="Ej. Agregar filtro al pipeline">
+          </label>
+          <div class="ticket-form-grid">
+            <label>Tipo
+              <select id="ticket-tipo"><option value="pedido">Pedido</option><option value="bug">Bug</option><option value="idea">Idea</option></select>
+            </label>
+            <label>Prioridad
+              <select id="ticket-prioridad"><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select>
+            </label>
+          </div>
+          <label>Detalle
+            <textarea id="ticket-detalle" rows="4" maxlength="2000" placeholder="Qué necesitás y cómo debería funcionar…"></textarea>
+          </label>
+          <button class="boton-primario" type="submit">Crear ticket</button>
+        </form>
+      </div>
+    </div>
+    <div id="tickets-lista" class="tickets-lista"><div class="mi-loading">Cargando tickets…</div></div>
+  </section>
+
+  <section id="pagina-tareas" class="pagina pagina-tareas" hidden>
+    <div class="fila-titulo">
+      <div>
+        <p class="eyebrow">Trabajo compartido</p>
+        <h1 class="titulo-pagina">Tasks</h1>
+      </div>
+    </div>
+    <p class="descriptor">Una lista compartida con tu equipo.</p>
+    <form id="form-tarea" class="tarea-nueva">
+      <input id="tarea-titulo" required maxlength="160" autocomplete="off" placeholder="Agregar una tarea…">
+      <button class="boton-primario" type="submit">Agregar</button>
+    </form>
+    <div id="tareas-lista" class="tareas-lista"><div class="mi-loading">Cargando tareas…</div></div>
+  </section>
+
+  <section id="pagina-resumen" class="pagina">
+    <section class="seccion">
+      <h2>Alertas</h2>
+      <p class="descriptor">Lo que pide acción hoy.</p>
+      <div id="alertas-lista" class="alertas"></div>
+    </section>
+
+    <section class="seccion">
+      <h2>Negocio</h2>
+      <p class="descriptor">La foto financiera del mes en curso.</p>
+      <div id="tiles"></div>
+    </section>
+  </section>
+
+  <section id="pagina-pipeline" class="pagina" hidden>
+    <div class="fila-titulo">
+      <h1 class="titulo-pagina">Pipeline</h1>
+      <button id="btn-nuevo-lead" class="boton-primario" type="button">+ Lead</button>
+    </div>
+    <p class="descriptor">Prospectos por etapa, de conversación a cerrado. <span id="tasa-cierre"></span></p>
+    <div id="pipeline-columnas" class="columnas"></div>
+  </section>
+
+  <section id="pagina-clientes" class="pagina" hidden>
+    <div class="fila-titulo">
+      <h1 class="titulo-pagina">Clientes</h1>
+      <button id="btn-nuevo-cliente" disabled class="boton-primario" type="button">+ Cliente</button>
+    </div>
+    <p class="descriptor">Salud de cada cliente: el cobro del mes según su fecha de arranque, y la renovación.</p>
+    <div id="clientes-tarjetas" class="tarjetas"></div>
+  </section>
+
+  <section id="pagina-finanzas" class="pagina" hidden>
+    <div class="fila-titulo">
+      <h1 class="titulo-pagina">Finanzas</h1>
+      <div id="filtro-periodo" class="segmentado" role="group" aria-label="Período de los gráficos">
+        <button type="button" class="segmento" data-meses="6" aria-pressed="false">6M</button>
+        <button type="button" class="segmento activo" data-meses="12" aria-pressed="true">12M</button>
+        <button type="button" class="segmento" data-meses="0" aria-pressed="false">Todo</button>
+      </div>
+    </div>
+    <p class="descriptor">Cuánto entró, cuánto ganó el negocio y cuánta plata quedó en caja cada mes.</p>
+    <div class="glass glass-card entrada-inicial" style="transition-delay:0ms">
+      <div class="panel core">
+        <h3>Cash collected</h3>
+        <div id="grafico-cobros" class="grafico"></div>
+        <details>
+          <summary>Ver tabla</summary>
+          <div class="tabla-scroll" tabindex="0" role="region" aria-label="Evolución financiera">
+            <table id="tabla-evolucion" class="tabla-datos"></table>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="grid-graficos">
+      <div class="glass glass-card entrada-inicial" style="transition-delay:80ms">
+        <div class="panel core">
+          <h3>Caja a fin de mes</h3>
+          <p class="nota">Saldo total de las cajas al cierre. Mes en curso: hasta hoy.</p>
+          <div id="grafico-caja" class="grafico"></div>
+        </div>
+      </div>
+      <div class="glass glass-card entrada-inicial" style="transition-delay:160ms">
+        <div class="panel core">
+          <h3>Ganancia por mes</h3>
+          <div id="grafico-ganancia" class="grafico"></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid-finanzas">
+      <div class="glass glass-card entrada-inicial" style="transition-delay:240ms">
+        <div class="panel core">
+          <div class="cabecera-panel">
+            <h3>Cobros individuales</h3>
+            <button id="btn-nuevo-cobro" disabled class="boton-secundario boton-chico" type="button">+ Cobro</button>
+          </div>
+          <div class="tabla-scroll" tabindex="0" role="region" aria-label="Cobros individuales">
+            <table id="tabla-cobros" class="tabla-datos"></table>
+          </div>
+        </div>
+      </div>
+      <div class="glass glass-card entrada-inicial" style="transition-delay:320ms">
+        <div class="panel core">
+          <div class="cabecera-panel">
+            <h3>Gastos</h3>
+            <button id="btn-nuevo-gasto" disabled class="boton-secundario boton-chico" type="button">+ Gasto</button>
+          </div>
+          <div id="costos-desglose"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pagina-caja" class="pagina" hidden>
+    <div class="fila-titulo">
+      <h1 class="titulo-pagina">Caja</h1>
+      <div class="fila-botones-titulo">
+        <button id="btn-nuevo-movimiento" disabled class="boton-secundario" type="button">⇄ Movimiento</button>
+        <button id="btn-nueva-caja" disabled class="boton-primario" type="button">+ Caja</button>
+      </div>
+    </div>
+    <p class="descriptor">Dónde está la plata: el saldo de cada caja según lo que entró, salió y se movió.</p>
+    <div id="caja-total"></div>
+    <div id="cajas-tarjetas" class="tarjetas"></div>
+    <section class="seccion">
+      <div class="glass glass-card">
+        <div class="panel core">
+          <h3>Movimientos entre cajas</h3>
+          <div class="tabla-scroll" tabindex="0" role="region" aria-label="Movimientos entre cajas">
+            <table id="tabla-movimientos" class="tabla-datos"></table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <section id="pagina-consultor" class="pagina" hidden>
+    <div class="fila-titulo">
+      <h1 class="titulo-pagina">Consultor</h1>
+      <div class="fila-botones-titulo">
+        <div id="consultor-modelo" class="segmentado" role="group" aria-label="Modelo del consultor">
+          <button type="button" class="segmento activo" data-modelo="sol" aria-pressed="true">Principal</button>
+          <button type="button" class="segmento" data-modelo="luna" aria-pressed="false">Rápido</button>
+        </div>
+        <button id="btn-nueva-conversacion" class="boton-secundario" type="button">Nueva conversación</button>
+      </div>
+    </div>
+    <p class="descriptor">Consultá los datos de tu negocio. Esta instalación todavía no tiene un proveedor de IA conectado.</p>
+    <div class="glass glass-card chat-shell">
+      <div class="panel core chat-core">
+
+        <div id="consultor-hilo" class="chat-hilo" role="log" aria-live="off" tabindex="0"
+             aria-label="Conversación con el consultor"></div>
+        <div id="consultor-actividad" class="chat-actividad" aria-live="polite"></div>
+        <div id="consultor-adjuntos" class="chat-adjuntos" hidden></div>
+        <form id="form-consultor" class="chat-entrada">
+          <input type="file" id="consultor-archivo" multiple hidden>
+          <button type="button" id="btn-adjuntar" class="boton-secundario boton-adjuntar"
+            aria-label="Adjuntar archivos" title="Adjuntar archivos">📎</button>
+          <textarea id="consultor-texto" rows="1" autocomplete="off" enterkeyhint="send"
+            placeholder="¿Cómo viene el mes?" aria-label="Mensaje para el consultor"></textarea>
+          <button type="button" id="btn-detener-consulta" class="boton-secundario" hidden>Detener</button>
+          <button type="submit" id="btn-enviar-consulta" class="boton-primario">Enviar</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="pagina-inbound" class="pagina" hidden>
+    <div class="fila-titulo inbound-titulo">
+      <div>
+        <p class="eyebrow">Marca personal · Instagram</p>
+        <h1 class="titulo-pagina">Inbound</h1>
+      </div>
+      <span id="inbound-sync" class="nota" role="status"></span>
+    </div>
+    <p class="descriptor">Video → DM con keyword → lead → llamada → cliente.</p>
+    <div class="filtros inbound-filtros" aria-label="Filtros de inbound">
+      <label>Cuenta <select id="inbound-cuenta"></select></label>
+      <label>Período
+        <select id="inbound-periodo">
+          <option value="7">7 días</option>
+          <option value="30" selected>30 días</option>
+          <option value="90">90 días</option>
+        </select>
+      </label>
+    </div>
+    <div id="inbound-metas" class="inbound-metas"></div>
+    <div class="glass glass-card inbound-card">
+      <div class="panel core">
+        <div id="inbound-embudo" class="inbound-embudo"></div>
+        <p id="inbound-recomendacion" class="inbound-recomendacion"></p>
+      </div>
+    </div>
+    <div class="glass glass-card inbound-card">
+      <div id="inbound-ranking" class="panel core tabla-scroll" tabindex="0" role="region" aria-label="Rendimiento inbound por video"></div>
+    </div>
+    <div id="inbound-cadencia" class="inbound-cadencia"></div>
+    <div id="inbound-sin-atribucion" class="descriptor"></div>
+  </section>
+</main>
+<footer class="app-footer">
+  <form method="post" action="{% url 'logout' %}" class="logout-form">{% csrf_token %}<button class="boton-footer" type="submit">Cerrar sesión</button></form>
+  <button id="btn-cambiar-codigo" class="boton-footer" type="button">Cambiar vista</button>
+</footer>
+<button id="btn-ticket-fab" class="ticket-fab" type="button" hidden aria-label="Crear ticket">+</button>
+
+<dialog id="dialogo-lead" class="glass">
+  <form id="form-lead" method="dialog">
+    <h3 id="dialogo-titulo">Nuevo lead</h3>
+    <input type="hidden" id="f-id">
+    <label>Nombre
+      <input id="f-nombre" required autocomplete="off">
+    </label>
+    <label>Origen
+      <select id="f-origen">
+        <option value="outreach">Outreach</option>
+        <option value="inbound">Inbound</option>
+        <option value="referido">Referido</option>
+      </select>
+    </label>
+    <label>Etapa
+      <select id="f-etapa">
+        <option value="conversacion">Conversación</option>
+        <option value="call_agendada">Call agendada</option>
+        <option value="propuesta">Propuesta</option>
+        <option value="cerrado">Cerrado</option>
+        <option value="perdido">Perdido</option>
+      </select>
+    </label>
+    <label>Cuentas propuestas
+      <input id="f-cuentas" type="number" min="1" step="1" placeholder="1">
+    </label>
+    <label>Monto total (USD)
+      <input id="f-monto-total" type="number" min="0" step="any" value="0">
+    </label>
+    <label>Plazos (cuotas mensuales)
+      <input id="f-plazos" type="number" min="1" step="1" value="1">
+    </label>
+    <p class="ayuda-derivado">Mensual: <span id="f-mensual-derivado">US$0/mes</span></p>
+    <label>Notas
+      <textarea id="f-notas" rows="2"></textarea>
+    </label>
+    <div class="fila-botones">
+      <button type="button" id="btn-eliminar-lead" class="boton-eliminar boton-baja" hidden>Eliminar</button>
+      <button type="button" id="btn-cancelar" class="boton-secundario">Cancelar</button>
+      <button type="submit" class="boton-primario">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dialogo-cliente" class="glass">
+  <form id="form-cliente" method="dialog">
+    <h3 id="dialogo-cliente-titulo">Nuevo cliente</h3>
+    <input type="hidden" id="fc-id">
+    <label>Nombre
+      <input id="fc-nombre" required autocomplete="off">
+    </label>
+    <label>Precio mensual (USD)
+      <input id="fc-precio" type="number" min="0" step="any">
+    </label>
+    <label>Cuentas operadas
+      <input id="fc-cuentas" type="number" min="1" step="1">
+    </label>
+    <label>Fecha de inicio
+      <input id="fc-inicio" type="date">
+    </label>
+    <label>Próxima renovación
+      <input id="fc-renovacion" type="date">
+    </label>
+    <label>Estado
+      <select id="fc-estado">
+        <option value="activo">Activo</option>
+        <option value="pausado">Pausado</option>
+        <option value="baja">Baja</option>
+      </select>
+    </label>
+    <label>Notas
+      <textarea id="fc-notas" rows="2"></textarea>
+    </label>
+    <div class="fila-botones">
+      <button type="button" id="btn-cancelar-cliente" class="boton-secundario">Cancelar</button>
+      <button type="submit" class="boton-primario">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dialogo-cobro" class="glass">
+  <form id="form-cobro" method="dialog">
+    <h3>Registrar cobro</h3>
+    <label>Cliente
+      <select id="fb-cliente" required></select>
+    </label>
+    <div id="fb-concepto-campo" class="campo-plegable">
+      <label>Concepto
+        <input id="fb-concepto" autocomplete="off" placeholder="Consultoría suelta, venta de equipo…" disabled>
+      </label>
+    </div>
+    <label>Monto (USD)
+      <input id="fb-monto" type="number" min="1" step="any" required>
+    </label>
+    <label>Fecha
+      <input id="fb-fecha" type="date">
+    </label>
+    <label>Método
+      <select id="fb-metodo">
+        <option value="transferencia">Transferencia</option>
+        <option value="efectivo">Efectivo</option>
+        <option value="otro">Otro</option>
+      </select>
+    </label>
+    <label>Entra en
+
+      <select id="fb-caja" required aria-describedby="fb-sin-caja"></select>
+    </label>
+    <p id="fb-sin-caja" class="aviso-campo" hidden>Todavía no hay ninguna caja. Toda la plata que
+      entra tiene que entrar en alguna: <a href="#/caja">creá una en la sección Caja</a> y volvé.</p>
+    <div class="fila-botones">
+      <button type="button" id="btn-cancelar-cobro" class="boton-secundario">Cancelar</button>
+      <button type="submit" id="btn-guardar-cobro" class="boton-primario">Registrar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dialogo-gasto" class="glass">
+  <form id="form-gasto" method="dialog">
+    <h3>Registrar gasto</h3>
+    <label>Concepto
+      <input id="fg-concepto" required autocomplete="off" placeholder="Notebook, curso, herramienta…">
+    </label>
+    <label>Monto (USD)
+      <input id="fg-monto" type="number" min="1" step="any" required>
+    </label>
+    <label>Fecha
+      <input id="fg-fecha" type="date">
+    </label>
+    <label>Tipo
+      <select id="fg-tipo">
+        <option value="unico">Único</option>
+        <option value="mensual">Mensual — se repite desde ese mes</option>
+      </select>
+    </label>
+    <label>Sale de
+      <select id="fg-caja" required aria-describedby="fg-sin-caja"></select>
+    </label>
+    <p id="fg-sin-caja" class="aviso-campo" hidden>Todavía no hay ninguna caja. Todo lo que se
+      gasta sale de alguna: <a href="#/caja">creá una en la sección Caja</a> y volvé.</p>
+    <div class="fila-botones">
+      <button type="button" id="btn-cancelar-gasto" class="boton-secundario">Cancelar</button>
+      <button type="submit" id="btn-guardar-gasto" class="boton-primario">Registrar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dialogo-caja" class="glass">
+  <form id="form-caja" method="dialog">
+    <h3 id="dialogo-caja-titulo">Nueva caja</h3>
+    <input type="hidden" id="fj-id">
+    <label>Nombre
+      <input id="fj-nombre" required autocomplete="off" placeholder="Banco, Mercado Pago, efectivo, USDT…">
+    </label>
+    <label>Saldo (USD)
+      <input id="fj-saldo" type="number" min="0" step="any" value="0">
+    </label>
+    <label>Saldo al empezar el día
+      <input id="fj-fecha" type="date">
+    </label>
+    <label>Notas
+      <textarea id="fj-notas" rows="2"></textarea>
+    </label>
+    <div class="fila-botones">
+      <button type="button" id="btn-eliminar-caja" class="boton-eliminar boton-baja" hidden>Eliminar</button>
+      <button type="button" id="btn-cancelar-caja" class="boton-secundario">Cancelar</button>
+      <button type="submit" class="boton-primario">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dialogo-movimiento" class="glass">
+  <form id="form-movimiento" method="dialog">
+    <h3>Movimiento entre cajas</h3>
+    <label>Tipo
+      <select id="fm-tipo">
+        <option value="transferencia">Transferencia — pasé plata de una caja a otra</option>
+        <option value="ajuste">Ajuste — el saldo real no coincide, corregilo</option>
+      </select>
+    </label>
+    <div id="fm-origen-campo">
+      <label>Sale de
+        <select id="fm-origen" required></select>
+      </label>
+    </div>
+    <label id="fm-destino-etiqueta">Entra en
+      <select id="fm-destino" required></select>
+    </label>
+    <label id="fm-monto-etiqueta">Monto (USD)
+      <input id="fm-monto" type="number" step="any" required>
+    </label>
+    <label>Fecha
+      <input id="fm-fecha" type="date">
+    </label>
+    <label>Nota
+      <input id="fm-nota" autocomplete="off" placeholder="opcional">
+    </label>
+    <div class="fila-botones">
+      <button type="button" id="btn-cancelar-movimiento" class="boton-secundario">Cancelar</button>
+      <button type="submit" class="boton-primario">Registrar</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="tooltip" class="tooltip" hidden></div>
+<script src="{% static 'ui/app.js' %}"></script>
+</body>
+</html>
